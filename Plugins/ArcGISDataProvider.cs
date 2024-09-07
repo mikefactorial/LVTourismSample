@@ -58,7 +58,7 @@ namespace LVTourism.Plugins
                 string query = $"where={mapper.PrimaryEntityMetadata.PrimaryIdAttribute} = '{mapper.MapToVirtualEntityValue(mapper.PrimaryEntityMetadata.PrimaryIdAttribute, context.PluginExecutionContext.PrimaryEntityId)}'";
                 query = mapper.MapVirtualEntityAttributes(query);
 
-                var entities = RestaurantInspections.GetDataFromArcGIS(context, mapper, query, 1, 1);
+                var entities = ArcGISQueryResults.GetDataFromArcGIS(context, mapper, query, 1, 1);
                 if (entities.Entities != null && entities.Entities.Count > 0)
                 {
                     entity = entities.Entities[0];
@@ -132,11 +132,11 @@ namespace LVTourism.Plugins
 
                     if (page != -1 && count != -1)
                     {
-                        collection = RestaurantInspections.GetDataFromArcGIS(context, mapper, arcQuery, count, page);
+                        collection = ArcGISQueryResults.GetDataFromArcGIS(context, mapper, arcQuery, count, page);
                     }
                     else
                     {
-                        collection = RestaurantInspections.GetDataFromArcGIS(context, mapper, arcQuery, -1, 1);
+                        collection = ArcGISQueryResults.GetDataFromArcGIS(context, mapper, arcQuery, -1, 1);
                     }
                 }
                 context.Trace($"Records Returned: {collection.Entities.Count}");

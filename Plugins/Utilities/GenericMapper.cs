@@ -108,7 +108,7 @@ namespace LVTourism.Plugins.Utilities
             return sql;
         }
 
-        public virtual EntityCollection CreateEntities(ILocalPluginContext context, RestaurantInspections inspections, int pageSize, int pageNumber)
+        public virtual EntityCollection CreateEntities(ILocalPluginContext context, ArcGISQueryResults inspections, int pageSize, int pageNumber)
         {
             var collection = new EntityCollection();
             collection.TotalRecordCount = inspections.features.Count;
@@ -123,19 +123,20 @@ namespace LVTourism.Plugins.Utilities
                     foreach(var col in inspections.fields)
                     {
                         context.Trace(col.name);
-                        if(row.attributes.GetType().GetProperty(col.name).GetValue(row.attributes, null) != null)
+                        if(col != null && !string.IsNullOrEmpty(col.name) && row != null && row.attributes != null && row.attributes.ContainsKey(col.name) && row.attributes[col.name] != null)
                         {
                             var entityAttribute = this.PrimaryEntityMetadata.Attributes.FirstOrDefault(a => a.ExternalName == col.name);
                             if(entityAttribute != null)
                             {
                                 context.Trace("Setting: " + col.name);
-                                entity[entityAttribute.LogicalName] = MapToVirtualEntityValue(entityAttribute, row.attributes.GetType().GetProperty(col.name).GetValue(row.attributes, null));
+                                entity[entityAttribute.LogicalName] = MapToVirtualEntityValue(entityAttribute, row.attributes[col.name]);
                             }
                         }
                     }
                     collection.Entities.Add(entity);
                 }
             }
+
             return collection;
         }
 
@@ -163,7 +164,7 @@ namespace LVTourism.Plugins.Utilities
 
         public virtual object MapToVirtualEntityValue(AttributeMetadata entityAttribute, object value)
         {
-            if (value == null || value == DBNull.Value)
+            if (value == null)
             {
                 return null;
             }
@@ -188,7 +189,7 @@ namespace LVTourism.Plugins.Utilities
             }
             else
             {
-                return value;
+                return value.ToString();
             }
         }
     }
