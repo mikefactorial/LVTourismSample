@@ -9,6 +9,7 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace LVTourism.Plugins.Utilities
 {
@@ -108,37 +109,6 @@ namespace LVTourism.Plugins.Utilities
             return sql;
         }
 
-        public virtual EntityCollection CreateEntities(ILocalPluginContext context, ArcGISQueryResults inspections, int pageSize, int pageNumber)
-        {
-            var collection = new EntityCollection();
-            collection.TotalRecordCount = inspections.features.Count;
-            collection.MoreRecords = (collection.TotalRecordCount > (pageSize * pageNumber)) || pageSize == -1;
-            if(inspections.features.Count > 0)
-            {
-                var rows = (pageSize > -1) ? inspections.features.Skip(pageSize * (pageNumber - 1)).Take(pageSize) : inspections.features;
-                context.Trace($"Creating {rows.Count()} records");
-                foreach (var row in rows)
-                {
-                    Entity entity = new Entity(context.PluginExecutionContext.PrimaryEntityName);
-                    foreach(var col in inspections.fields)
-                    {
-                        context.Trace(col.name);
-                        if(col != null && !string.IsNullOrEmpty(col.name) && row != null && row.attributes != null && row.attributes.ContainsKey(col.name) && row.attributes[col.name] != null)
-                        {
-                            var entityAttribute = this.PrimaryEntityMetadata.Attributes.FirstOrDefault(a => a.ExternalName == col.name);
-                            if(entityAttribute != null)
-                            {
-                                context.Trace("Setting: " + col.name);
-                                entity[entityAttribute.LogicalName] = MapToVirtualEntityValue(entityAttribute, row.attributes[col.name]);
-                            }
-                        }
-                    }
-                    collection.Entities.Add(entity);
-                }
-            }
-
-            return collection;
-        }
 
         public virtual Dictionary<string, string> GetCustomMappings()
         {
@@ -168,14 +138,24 @@ namespace LVTourism.Plugins.Utilities
             {
                 return null;
             }
-            else if(entityAttribute.LogicalName == this.PrimaryEntityMetadata.PrimaryIdAttribute && Int32.TryParse(value.ToString(), out int keyInt))
+            else if (entityAttribute.LogicalName == this.PrimaryEntityMetadata.PrimaryIdAttribute && Int32.TryParse(value.ToString(), out int keyInt))
             {
                 //This is a generic method of creating a guid from an int value if no guid is available in the database
                 return new Guid(keyInt.ToString().PadLeft(32, 'a'));
             }
+            else if (entityAttribute.LogicalName == this.PrimaryEntityMetadata.PrimaryIdAttribute && !Guid.TryParse(value.ToString(), out Guid keyGuid))
+            {
+                //This is a generic method of creating a guid from a string if no guid is available in the database
+                return ConvertStringToGuid(value.ToString());
+            }
             else if (entityAttribute is LookupAttributeMetadata lookupAttr && Int32.TryParse(value.ToString(), out int lookupInt))
             {
                 var lookup = new EntityReference(lookupAttr.Targets[0], new Guid(lookupInt.ToString().PadLeft(32, 'a')));
+                return lookup;
+            }
+            else if (entityAttribute is LookupAttributeMetadata lookupAttr2 && !Guid.TryParse(value.ToString(), out Guid lookupGuid))
+            {
+                var lookup = new EntityReference(lookupAttr2.Targets[0], new Guid(value.GetHashCode().ToString().PadLeft(32, 'a')));
                 return lookup;
             }
             else if ((entityAttribute is StatusAttributeMetadata || entityAttribute is StateAttributeMetadata || entityAttribute is PicklistAttributeMetadata) && Int32.TryParse(value.ToString(), out int picklistInt))
@@ -187,10 +167,57 @@ namespace LVTourism.Plugins.Utilities
                 //This converts the generated guid back to an int. 
                 return intValue.ToString();
             }
+            else if (Guid.TryParse(value.ToString(), out var outGuid))
+            {
+                //We don't have any guids in our source data so this needs to convert back to string
+                return ConvertGuidToString(outGuid);
+            }
             else
             {
                 return value.ToString();
             }
+        }
+
+        public Guid ConvertStringToGuid(string value)
+        {
+            //This is a generic method of creating a guid from a string if no guid is available in the database
+            var strValue = value.ToString();
+            if (string.IsNullOrEmpty(strValue))
+            {
+                return Guid.NewGuid();
+            }
+            StringBuilder hex = new StringBuilder(strValue.Length * 2);
+            foreach (char c in strValue)
+            {
+                hex.AppendFormat("{0:x2}", (int)c);
+            }
+            strValue = hex.ToString();
+            if (!Guid.TryParse(strValue.PadLeft(32, 'a'), out Guid outGuid))
+            {
+                return Guid.NewGuid();
+            }
+            return outGuid;
+        }
+
+        public string ConvertGuidToString(Guid value)
+        {
+            //Obvious edge case where the guid already starts with an 'a' will fail
+            var str = value.ToString().Replace("{", "").Replace("-", "").ToLower();
+            for (var i = 0; i < str.Length; i++)
+            {
+                if (str[i] != 'a')
+                {
+                    str = str.Substring(i);
+                    break;
+                }
+            }
+            int numberChars = str.Length;
+            byte[] bytes = new byte[numberChars / 2];
+            for (int i = 0; i < numberChars; i += 2)
+            {
+                bytes[i / 2] = Convert.ToByte(str.Substring(i, 2), 16);
+            }
+            return Encoding.UTF8.GetString(bytes);
         }
     }
 }

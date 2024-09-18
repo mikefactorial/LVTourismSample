@@ -54,7 +54,39 @@ namespace LVTourism.Plugins.Utilities
             var restaurantInspections = JsonConvert.DeserializeObject<ArcGISQueryResults>(json);
             context.Trace($"Creating records");
             context.Trace($"Found: {restaurantInspections.features.Count}");
-            return mapper.CreateEntities(context, restaurantInspections, pageSize, pageNumber);
+            return CreateEntities(context, mapper, restaurantInspections, pageSize, pageNumber);
+        }
+
+        public static EntityCollection CreateEntities(ILocalPluginContext context, GenericMapper mapper, ArcGISQueryResults inspections, int pageSize, int pageNumber)
+        {
+            var collection = new EntityCollection();
+            collection.TotalRecordCount = inspections.features.Count;
+            collection.MoreRecords = (collection.TotalRecordCount > (pageSize * pageNumber)) || pageSize == -1;
+            if (inspections.features.Count > 0)
+            {
+                var rows = (pageSize > -1) ? inspections.features.Skip(pageSize * (pageNumber - 1)).Take(pageSize) : inspections.features;
+                context.Trace($"Creating {rows.Count()} records");
+                foreach (var row in rows)
+                {
+                    Entity entity = new Entity(context.PluginExecutionContext.PrimaryEntityName);
+                    foreach (var col in inspections.fields)
+                    {
+                        context.Trace(col.name);
+                        if (col != null && !string.IsNullOrEmpty(col.name) && row != null && row.attributes != null && row.attributes.ContainsKey(col.name) && row.attributes[col.name] != null)
+                        {
+                            var entityAttribute = mapper.PrimaryEntityMetadata.Attributes.FirstOrDefault(a => a.ExternalName == col.name);
+                            if (entityAttribute != null)
+                            {
+                                context.Trace("Setting: " + col.name);
+                                entity[entityAttribute.LogicalName] = mapper.MapToVirtualEntityValue(entityAttribute, row.attributes[col.name]);
+                            }
+                        }
+                    }
+                    collection.Entities.Add(entity);
+                }
+            }
+
+            return collection;
         }
     }
 
