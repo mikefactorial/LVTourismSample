@@ -1,0 +1,97 @@
+<script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+<div id="chat-circle" class="btn btn-raised">
+    <div id="chat-overlay"></div>
+    <i class="material-icons">live_help</i>
+  </div>
+  
+  <div class="chat-box">
+    <div class="chat-box-header">
+      Travel Copilot
+      <span class="chat-box-toggle"><i class="material-icons">close</i></span>
+    </div>
+    <div class="chat-box-body">
+      <div class="chat-box-overlay">   
+      </div><!--chat-box-overlay -->
+      <div class="chat-logs" id="touristChat">
+      </div><!--chat-log -->
+    </div><!--chat-box-body -->
+  </div><!--chat-box -->
+  <script type='text/javascript'>
+    // you can find the token URL via the mobile app channel configuration
+    var copilotUrl = "" 
+    async function fetchJSON(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          accept: 'application/json'
+        }
+      });
+    
+      if (!res.ok) {
+        throw new Error(`Failed to fetch JSON due to ${res.status}`);
+      }
+    
+      return res.json();
+    } 
+    //Load Bot to Page
+    (async function main() {
+    
+      $(document).delegate(".chat-btn", "click", function () {
+        var value = $(this).attr("chat-value");
+        var name = $(this).html();
+      });
+    
+      $("#chat-circle").click(function () {
+        $("#chat-circle").toggle('scale');
+        $(".chat-box").toggle('scale');
+      });
+    
+      $(".chat-box-toggle").click(function () {
+        $("#chat-circle").toggle('scale');
+        $(".chat-box").toggle('scale');
+      });
+    
+      var clientApplication;
+    
+      const { token } = await fetchJSON(copilotUrl);
+      const directLine = window.WebChat.createDirectLine({ token });
+      const store = window.WebChat.createStore({}, ({ dispatch }) => next => action => {
+        const { type } = action;
+        if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
+          dispatch({
+            type: 'WEB_CHAT/SEND_EVENT',
+            payload: {
+              name: 'startConversation',
+              type: 'event',
+              value: { text: "Hello, you can refer to me as Vegas Traveller" }
+            }
+          });
+        }
+        if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
+          const activity = action.payload.activity;
+          let resourceUri;
+          if (activity.from && activity.from.role === 'bot' && activity.text !== undefined && action.payload.activity.text.includes('events')) {
+            action.payload.activity.text = action.payload.activity.text + "\ To browse all upcoming events check out [our Events page](" + window.location.origin + "/Events/)"
+          }
+        }
+        return next(action);
+      });
+      const styleOptions = {
+        // Add styleOptions to customize Web Chat canvas
+        hideUploadButton: true,
+      };
+    
+      const userId = "";
+      window.WebChat.renderWebChat(
+        {
+          directLine: directLine,
+          store,
+          styleOptions
+        },
+        document.getElementById('touristChat')
+      );
+    })().catch(
+      err => console.error("An error occurred: " + err)
+    );
+</script>
